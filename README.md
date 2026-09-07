@@ -121,13 +121,13 @@ Open [http://localhost:5000](http://localhost:5000) in your web browser.
    - Validates that the file starts with the ESP32 magic byte `0xE9`.
    - Generates a cryptographically random 64-hex API key using `secrets.token_hex(32)`.
    - Computes the unsigned 32-bit CRC32 checksum.
-   - Atomically saves `firmware/<key>.bin` and `firmware/<key>.json` with `version: 1`.
+   - Atomically saves `firmware/<key>.bin` and `firmware/<key>.json` with `version: 1` and initializes a `history` timeline.
    - Presents a confirmation screen displaying the **API key** prominently with a one-click copy button.
-   - **Crucial:** The user must copy this key now and embed it into the ESP32 firmware. It is never logged or shown again.
+   - **Local Storage Persistence:** Automatically saves the API key, version, filename, and CRC32 to the browser's `localStorage` so you never lose the key.
 
 ### Flow B: Pushing an Update to an Existing Device
 1. Select the new compiled ESP32 firmware binary (`.bin`).
-2. Paste the device's **64-hexadecimal API key** into the "Existing API key" field.
+2. Paste the device's **64-hexadecimal API key** into the "Existing API key" field (or click **"Update"** next to the device in the Local History table).
 3. Click **"Upload and Deploy Firmware"**.
 4. The server:
    - Strictly validates the key format against `^[0-9a-f]{64}$` before touching the disk.
@@ -135,9 +135,20 @@ Open [http://localhost:5000](http://localhost:5000) in your web browser.
    - Increments the existing version number by 1 (`v(N) -> v(N+1)`).
    - Validates the magic byte `0xE9` and max size.
    - Computes the new CRC32.
+   - Appends to the revision `history` list in `firmware/<key>.json`.
    - Atomically overwrites `firmware/<key>.bin` and `firmware/<key>.json`.
    - Shows a confirmation page displaying the new version number and CRC32.
-   - **Privacy:** The API key is **not** displayed on this page.
+   - **Local Storage Update:** Automatically updates the device's record and revision history in the browser's `localStorage`.
+
+### Local Storage & Fleet History
+The web portal includes an interactive **Uploaded Firmwares & Local History** dashboard stored directly in your browser:
+- **Device Nicknames**: Rename or label devices (e.g. "Office Sensor") for easy recognition.
+- **Revision Timeline**: View the full revision history of any device (all versions, filenames, CRC32 checksums, and deployment timestamps).
+- **One-Click Actions**:
+  - **Update**: Prefills the upload form with the device's API key.
+  - **Check Status**: Queries the live server endpoint to verify device connectivity and whether an update is available.
+  - **Download Binary**: Directly downloads the active firmware binary.
+- **Export & Import Backup**: Easily export your saved devices and keys to a JSON file to transfer between browsers or create backups.
 
 ---
 

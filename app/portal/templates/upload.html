@@ -71,6 +71,408 @@
                 </div>
             </div>
         </div>
+
+        <!-- Local Storage Uploaded Firmwares History Section -->
+        <div id="history-section" class="card main-card mt-5 p-4 p-md-5">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 pb-3 mb-4 border-bottom">
+                <div>
+                    <h3 class="h4 fw-bold mb-1 d-flex align-items-center gap-2">
+                        <i class="bi bi-clock-history text-primary"></i>
+                        <span>Uploaded Firmwares & Local History</span>
+                    </h3>
+                    <p class="text-muted small mb-0">
+                        Tracked in your browser's local storage &bull; Device keys and deployment history for this machine.
+                    </p>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-secondary btn-sm" onclick="exportHistory()" title="Export JSON backup of saved devices">
+                        <i class="bi bi-download me-1"></i> Export
+                    </button>
+                    <label class="btn btn-outline-secondary btn-sm mb-0 cursor-pointer" title="Import JSON backup of saved devices">
+                        <i class="bi bi-upload me-1"></i> Import
+                        <input type="file" id="importFileInput" accept=".json" style="display:none;" onchange="importHistory(event)">
+                    </label>
+                    <button class="btn btn-outline-danger btn-sm" onclick="clearAllHistory()" title="Clear local storage history">
+                        <i class="bi bi-trash me-1"></i> Clear
+                    </button>
+                </div>
+            </div>
+
+            <!-- Dynamic History Content Container -->
+            <div id="historyContainer">
+                <!-- Populated via JavaScript -->
+            </div>
+        </div>
     </div>
 </div>
+
+<!-- Device Version Timeline Modal -->
+<div class="modal fade" id="historyModal" tabindex="-1" aria-labelledby="historyModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title d-flex align-items-center gap-2" id="historyModalLabel">
+                    <i class="bi bi-layers-fill text-info"></i>
+                    <span id="modalDeviceTitle">Device Firmware Revisions</span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="mb-3">
+                    <label class="form-label text-muted small fw-semibold">Device API Key</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control font-monospace small bg-light" id="modalApiKeyInput" readonly>
+                        <button class="btn btn-outline-secondary" onclick="copyModalKey()">
+                            <i class="bi bi-clipboard" id="modalCopyIcon"></i>
+                        </button>
+                    </div>
+                </div>
+                <h6 class="fw-bold text-secondary text-uppercase small mt-4 mb-3">Revision Timeline</h6>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light small">
+                            <tr>
+                                <th>Version</th>
+                                <th>File Name</th>
+                                <th>CRC32</th>
+                                <th>Deployed At (UTC)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="modalTimelineBody">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function renderHistory() {
+    const container = document.getElementById("historyContainer");
+    const devices = FleetStorage.getDevices();
+
+    if (!devices || devices.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-5">
+                <div class="text-muted mb-3">
+                    <i class="bi bi-inbox fs-1"></i>
+                </div>
+                <h5 class="fw-bold text-secondary">No Upload History in this Browser</h5>
+                <p class="text-muted small mb-0" style="max-width: 460px; margin: 0 auto;">
+                    When you register or update devices through this portal, their API keys, versions, and firmware details will automatically be saved here in local storage.
+                </p>
+            </div>
+        `;
+        return;
+    }
+
+    let html = `
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light small text-secondary">
+                    <tr>
+                        <th style="min-width: 160px;">Device / File</th>
+                        <th style="min-width: 180px;">API Key</th>
+                        <th>Version</th>
+                        <th>CRC32</th>
+                        <th style="min-width: 130px;">Uploaded</th>
+                        <th class="text-end" style="min-width: 180px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+
+    devices.forEach((dev, idx) => {
+        const shortKey = dev.apiKey ? (dev.apiKey.substring(0, 8) + "..." + dev.apiKey.substring(56)) : "N/A";
+        const uploadDate = dev.uploadedAt ? new Date(dev.uploadedAt).toLocaleString() : "Unknown";
+        const crcHex = dev.crc32 !== undefined ? "0x" + Number(dev.crc32 >>> 0).toString(16).toUpperCase().padStart(8, '0') : "N/A";
+        const revisionCount = (dev.history && dev.history.length) || 1;
+
+        html += `
+            <tr>
+                <td>
+                    <div class="fw-bold text-dark d-flex align-items-center gap-1">
+                        <span id="label-text-${idx}">${escapeHtml(dev.label || dev.filename || "ESP32 Device")}</span>
+                        <button class="btn btn-link btn-sm text-secondary p-0 ms-1" onclick="editLabel('${dev.apiKey}', '${escapeHtml(dev.label || dev.filename || '')}')" title="Rename label">
+                            <i class="bi bi-pencil-square"></i>
+                        </button>
+                    </div>
+                    <div class="small text-muted font-monospace text-truncate" style="max-width: 180px;" title="${escapeHtml(dev.filename || '')}">
+                        <i class="bi bi-file-earmark-binary me-1"></i>${escapeHtml(dev.filename || 'firmware.bin')}
+                    </div>
+                </td>
+                <td>
+                    <div class="d-flex align-items-center gap-1">
+                        <span class="font-monospace small text-primary" id="key-display-${idx}">${shortKey}</span>
+                        <button class="btn btn-outline-secondary btn-sm py-0 px-1" onclick="copyText('${dev.apiKey}', this)" title="Copy full 64-hex key">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </div>
+                </td>
+                <td>
+                    <span class="badge bg-primary">v${dev.version || 1}</span>
+                    ${revisionCount > 1 ? `
+                        <button class="btn btn-link btn-sm p-0 d-block small text-decoration-none mt-1" onclick="showHistoryModal('${dev.apiKey}')">
+                            ${revisionCount} revisions
+                        </button>
+                    ` : ''}
+                </td>
+                <td>
+                    <span class="font-monospace small text-dark">${crcHex}</span>
+                </td>
+                <td>
+                    <span class="small text-muted">${uploadDate}</span>
+                </td>
+                <td class="text-end">
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-primary" onclick="deployUpdate('${dev.apiKey}')" title="Deploy update to this device">
+                            <i class="bi bi-upload me-1"></i> Update
+                        </button>
+                        <button class="btn btn-outline-secondary" onclick="checkLiveStatus('${dev.apiKey}', ${dev.version || 1}, this)" title="Query live device endpoint on server">
+                            <i class="bi bi-arrow-clockwise"></i>
+                        </button>
+                        <button class="btn btn-outline-secondary" onclick="downloadFirmware('${dev.apiKey}', '${escapeHtml(dev.filename || 'firmware.bin')}')" title="Download current firmware binary">
+                            <i class="bi bi-download"></i>
+                        </button>
+                        <button class="btn btn-outline-danger" onclick="deleteDevice('${dev.apiKey}')" title="Remove from local history">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    });
+
+    html += `
+                </tbody>
+            </table>
+        </div>
+    `;
+
+    container.innerHTML = html;
+}
+
+function escapeHtml(text) {
+    if (!text) return "";
+    return text.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+}
+
+function deployUpdate(apiKey) {
+    const keyInput = document.getElementById("api_key");
+    const fileInput = document.getElementById("firmware_file");
+    if (keyInput) {
+        keyInput.value = apiKey;
+        keyInput.scrollIntoView({ behavior: "smooth", block: "center" });
+        keyInput.classList.add("is-valid");
+        setTimeout(() => keyInput.classList.remove("is-valid"), 2000);
+        if (fileInput) fileInput.focus();
+    }
+}
+
+function copyText(text, btn) {
+    navigator.clipboard.writeText(text).then(() => {
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = `<i class="bi bi-check-lg text-success"></i>`;
+        setTimeout(() => btn.innerHTML = originalHtml, 1500);
+    });
+}
+
+function editLabel(apiKey, currentLabel) {
+    const newLabel = prompt("Enter a nickname or label for this device:", currentLabel);
+    if (newLabel !== null) {
+        FleetStorage.updateLabel(apiKey, newLabel);
+        renderHistory();
+    }
+}
+
+function deleteDevice(apiKey) {
+    if (confirm("Remove this device from your browser's local history? (The firmware remains on the server)")) {
+        FleetStorage.removeDevice(apiKey);
+        renderHistory();
+    }
+}
+
+function clearAllHistory() {
+    if (confirm("Clear all saved devices from this browser's local storage?")) {
+        FleetStorage.clearAll();
+        renderHistory();
+    }
+}
+
+function checkLiveStatus(apiKey, currentVersion, btn) {
+    const originalHtml = btn.innerHTML;
+    btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status"></span>`;
+    btn.disabled = true;
+
+    fetch(`/api/v1/check-update?current_version=${currentVersion}`, {
+        headers: { "Authorization": "Bearer " + apiKey }
+    })
+    .then(res => {
+        if (res.status === 200) return res.json().then(data => ({ status: 200, data }));
+        if (res.status === 404) return { status: 404, message: "Device not found on server." };
+        return { status: res.status, message: "Error status " + res.status };
+    })
+    .then(result => {
+        btn.innerHTML = originalHtml;
+        btn.disabled = false;
+        if (result.status === 200) {
+            alert(`Server Status: Verified Online\nLatest Version: v${result.data.version}\nCRC32: 0x${Number(result.data.crc32 >>> 0).toString(16).toUpperCase()}\nUpdate Available for v${currentVersion}: ${result.data.update_available ? 'Yes' : 'No (Device is up-to-date)'}`);
+        } else {
+            alert(`Server check returned: ${result.message || 'Error'}`);
+        }
+    })
+    .catch(err => {
+        btn.innerHTML = originalHtml;
+        btn.disabled = false;
+        alert("Failed to connect to server: " + err.message);
+    });
+}
+
+function downloadFirmware(apiKey, filename) {
+    fetch("/api/v1/download-firmware", {
+        headers: { "Authorization": "Bearer " + apiKey }
+    })
+    .then(res => {
+        if (!res.ok) throw new Error("Server returned status " + res.status);
+        return res.blob();
+    })
+    .then(blob => {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename || "firmware.bin";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+    })
+    .catch(err => {
+        alert("Download failed: " + err.message);
+    });
+}
+
+function showHistoryModal(apiKey) {
+    const devices = FleetStorage.getDevices();
+    const dev = devices.find(d => d.apiKey === apiKey);
+    if (!dev) return;
+
+    document.getElementById("modalDeviceTitle").innerText = (dev.label || dev.filename) + " - Revision History";
+    document.getElementById("modalApiKeyInput").value = dev.apiKey;
+
+    const tbody = document.getElementById("modalTimelineBody");
+    const historyList = dev.history || [{
+        version: dev.version,
+        crc32: dev.crc32,
+        filename: dev.filename,
+        uploadedAt: dev.uploadedAt
+    }];
+
+    tbody.innerHTML = historyList.map((h, i) => `
+        <tr>
+            <td><span class="badge bg-${i === historyList.length - 1 ? 'success' : 'secondary'}">v${h.version || (i+1)}</span></td>
+            <td class="font-monospace small">${escapeHtml(h.filename || 'firmware.bin')}</td>
+            <td class="font-monospace small">0x${Number((h.crc32 || 0) >>> 0).toString(16).toUpperCase().padStart(8, '0')}</td>
+            <td class="small text-muted">${h.uploadedAt ? new Date(h.uploadedAt).toLocaleString() : 'N/A'}</td>
+        </tr>
+    `).join("");
+
+    const modal = new bootstrap.Modal(document.getElementById("historyModal"));
+    modal.show();
+}
+
+function copyModalKey() {
+    const key = document.getElementById("modalApiKeyInput").value;
+    navigator.clipboard.writeText(key).then(() => {
+        const icon = document.getElementById("modalCopyIcon");
+        icon.className = "bi bi-check-lg text-success";
+        setTimeout(() => icon.className = "bi bi-clipboard", 1500);
+    });
+}
+
+function exportHistory() {
+    const devices = FleetStorage.getDevices();
+    if (!devices || devices.length === 0) {
+        alert("No device history to export.");
+        return;
+    }
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(devices, null, 2));
+    const dlAnchor = document.createElement("a");
+    dlAnchor.setAttribute("href", dataStr);
+    dlAnchor.setAttribute("download", `fleet_ota_backup_${new Date().toISOString().slice(0,10)}.json`);
+    document.body.appendChild(dlAnchor);
+    dlAnchor.click();
+    dlAnchor.remove();
+}
+
+function importHistory(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const imported = JSON.parse(e.target.result);
+            if (!Array.isArray(imported)) throw new Error("Expected JSON array of devices.");
+            let count = 0;
+            imported.forEach(d => {
+                if (d.apiKey && typeof d.apiKey === "string" && d.apiKey.length === 64) {
+                    FleetStorage.saveDevice(d);
+                    count++;
+                }
+            });
+            alert(`Successfully imported ${count} device(s) into local storage.`);
+            renderHistory();
+        } catch (err) {
+            alert("Invalid backup file: " + err.message);
+        }
+    };
+    reader.readAsText(file);
+    event.target.value = "";
+}
+</script>
+
+<script id="serverDevicesData" type="application/json">
+{{ (server_devices or []) | tojson }}
+</script>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const serverDataEl = document.getElementById("serverDevicesData");
+    if (serverDataEl) {
+        try {
+            const serverDevices = JSON.parse(serverDataEl.textContent || "[]");
+            if (Array.isArray(serverDevices)) {
+                serverDevices.forEach(sd => FleetStorage.saveDevice(sd));
+            }
+        } catch (e) {
+            console.error("Error parsing server devices on init:", e);
+        }
+    }
+
+    // 2. Render history table
+    renderHistory();
+
+    const form = document.querySelector("form");
+    if (form) {
+        form.addEventListener("submit", () => {
+            const key = document.getElementById("api_key")?.value.trim();
+            const fileInput = document.getElementById("firmware_file");
+            const filename = fileInput?.files?.[0]?.name;
+            if (key) {
+                sessionStorage.setItem("fleet_ota_pending_key", key);
+                if (filename) {
+                    sessionStorage.setItem("fleet_ota_pending_filename", filename);
+                }
+            }
+        });
+    }
+});
+</script>
 {% endblock %}

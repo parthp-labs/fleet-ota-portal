@@ -9,6 +9,18 @@ def test_portal_index(client):
     assert b"firmware_file" in response.data
     assert b"api_key" in response.data
 
+def test_portal_index_shows_existing_firmwares(client, firmware_dir, make_esp32_bin):
+    from app.storage import generate_api_key, save_firmware_file
+    key = generate_api_key()
+    save_firmware_file(io.BytesIO(make_esp32_bin(b"INIT")), key, firmware_dir, version=5, filename="my_init_fw.bin")
+
+    response = client.get("/")
+    assert response.status_code == 200
+    html = response.data.decode("utf-8")
+    assert key in html
+    assert "my_init_fw.bin" in html
+    assert "serverDevicesData" in html
+
 def test_upload_new_device(client, firmware_dir, make_esp32_bin):
     fw_data = make_esp32_bin(b"VERSION_1_CODE")
     data = {
@@ -36,6 +48,12 @@ def test_upload_new_device(client, firmware_dir, make_esp32_bin):
     assert meta["version"] == 1
     assert "crc32" in meta
     assert "uploaded_at" in meta
+    assert "history" in meta
+    assert len(meta["history"]) == 1
+
+    # Check that client-side local storage script is embedded
+    assert "FleetStorage.saveDevice" in html
+    assert "Saved to Local Storage" in html
 
 def test_upload_update_device(client, firmware_dir, make_esp32_bin):
     # 1. First upload a new device
@@ -58,6 +76,8 @@ def test_upload_update_device(client, firmware_dir, make_esp32_bin):
     html2 = res2.data.decode("utf-8")
     assert "Firmware Update Succeeded!" in html2
     assert "v2" in html2
+    assert "Updated in Local Storage" in html2
+    assert "FleetStorage.saveDevice" in html2
     # Ensure API key is NOT re-exposed on confirmation page
     assert key not in html2
 

@@ -116,42 +116,30 @@ def save_firmware_file(
     firmware_dir: Path,
     version: int,
     max_size: int = 4 * 1024 * 1024,
-    magic_byte: int = 0xE9
+    magic_byte: int = 0xE9,
+    filename: Optional[str] = None
 ) -> Dict[str, Any]:
-    """
-    Validates and writes uploaded firmware binary and its sidecar metadata.
-    
-    - Validates magic byte (0xE9 for ESP32)
-    - Validates max file size
-    - Computes CRC32
-    - Performs atomic file replacement for both .bin and .json
-    """
     bin_path, json_path = get_firmware_paths(key, firmware_dir)
     firmware_dir.mkdir(parents=True, exist_ok=True)
-    
-    # 1. Validate magic byte (first byte)
-    first_byte = file_storage.read(1)
-    if not first_byte:
+
+    header = file_storage.read(1)
+    if not header:
         raise InvalidFirmwareError("Uploaded file is empty.")
-    if first_byte[0] != magic_byte:
+    if header[0] != magic_byte:
         raise InvalidFirmwareError(
-            f"Invalid firmware: First byte is 0x{first_byte[0]:02X}, but expected ESP32 magic byte 0x{magic_byte:02X}."
+            f"Invalid firmware: Expected ESP32 magic byte 0x{magic_byte:02X}, got 0x{header[0]:02X}."
         )
-    
-    # Rewind to start
+
     file_storage.seek(0)
-    
-    # 2. Stream to a temporary binary file, calculating CRC32 and enforcing max_size
+
+    # Stream chunks to a temp file, computing CRC32 on the fly and enforcing size limit
     temp_bin = tempfile.NamedTemporaryFile("wb", dir=firmware_dir, delete=False)
-    temp_bin_name = temp_bin.name
+    temp_name = temp_bin.name
     total_bytes = 0
     crc = 0
-    
+
     try:
-        while True:
-            chunk = file_storage.read(65536)
-            if not chunk:
-                break
+        while chunk := file_storage.read(65536):
             total_bytes += len(chunk)
             if total_bytes > max_size:
                 raise FileTooLargeError(
@@ -159,25 +147,98 @@ def save_firmware_file(
                 )
             crc = zlib.crc32(chunk, crc)
             temp_bin.write(chunk)
-            
+
         temp_bin.flush()
         os.fsync(temp_bin.fileno())
         temp_bin.close()
-        
-        # Atomically replace destination .bin
-        os.replace(temp_bin_name, bin_path)
+        os.replace(temp_name, bin_path)
     except Exception:
         temp_bin.close()
-        if os.path.exists(temp_bin_name):
-            os.remove(temp_bin_name)
+        if os.path.exists(temp_name):
+            os.remove(temp_name)
         raise
 
-    # 3. Write sidecar JSON atomically
+    # Preserve audit history across releases
+    existing = read_metadata(key, firmware_dir)
+    history = []
+    if existing and isinstance(existing.get("history"), list):
+        history = list(existing["history"])
+    elif existing and "version" in existing:
+        history.append({
+            "version": existing.get("version"),
+            "crc32": existing.get("crc32"),
+            "uploaded_at": existing.get("uploaded_at"),
+            "filename": existing.get("filename", "firmware.bin")
+        })
+
+    now = datetime.now(timezone.utc).isoformat()
+    clean_name = Path(filename).name if filename else "firmware.bin"
+
+    history.append({
+        "version": int(version),
+        "crc32": int(crc & 0xFFFFFFFF),
+        "uploaded_at": now,
+        "filename": clean_name
+    })
+
     metadata = {
         "version": int(version),
         "crc32": int(crc & 0xFFFFFFFF),
-        "uploaded_at": datetime.now(timezone.utc).isoformat()
+        "uploaded_at": now,
+        "filename": clean_name,
+        "history": history
     }
     atomic_write_json(json_path, metadata)
-    
     return metadata
+
+
+def list_existing_firmwares(firmware_dir: Path) -> list:
+    """
+    List all valid firmware devices currently stored on the filesystem.
+    Reads sidecars and returns a list of device dictionaries sorted by uploaded_at descending.
+    """
+    if not firmware_dir.is_dir():
+        return []
+
+    devices = []
+    for json_file in firmware_dir.glob("*.json"):
+        key = json_file.stem
+        if not is_valid_api_key(key):
+            continue
+
+        bin_file = firmware_dir / f"{key}.bin"
+        if not bin_file.is_file():
+            continue
+
+        meta = read_metadata(key, firmware_dir)
+        if not meta or not isinstance(meta, dict):
+            continue
+
+        size_bytes = 0
+        try:
+            size_bytes = bin_file.stat().st_size
+        except OSError:
+            pass
+
+        history = meta.get("history", [])
+        if not history and "version" in meta:
+            history = [{
+                "version": meta.get("version"),
+                "crc32": meta.get("crc32"),
+                "uploaded_at": meta.get("uploaded_at"),
+                "filename": meta.get("filename", f"firmware_{key[:8]}.bin")
+            }]
+
+        devices.append({
+            "apiKey": key,
+            "version": int(meta.get("version", 1)),
+            "crc32": int(meta.get("crc32", 0)),
+            "uploadedAt": meta.get("uploaded_at", ""),
+            "filename": meta.get("filename", f"firmware_{key[:8]}.bin"),
+            "sizeBytes": size_bytes,
+            "history": history
+        })
+
+    # Sort descending by uploadedAt
+    devices.sort(key=lambda d: d.get("uploadedAt", ""), reverse=True)
+    return devices

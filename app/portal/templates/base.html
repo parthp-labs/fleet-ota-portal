@@ -50,9 +50,16 @@
                 <i class="bi bi-cpu-fill text-info fs-4"></i>
                 <span>ESP32 Fleet OTA</span>
             </a>
-            <span class="navbar-text text-light-50 small">
-                <i class="bi bi-shield-lock-fill text-warning me-1"></i> Database-Free Zero-Knowledge Access
-            </span>
+            <div class="d-flex align-items-center gap-3">
+                <a href="{{ url_for('portal.index') }}#history-section" class="btn btn-sm btn-outline-light d-flex align-items-center gap-2">
+                    <i class="bi bi-clock-history"></i>
+                    <span>Local History</span>
+                    <span class="badge bg-info text-dark rounded-pill device-count-badge" style="display:none;">0</span>
+                </a>
+                <span class="navbar-text text-light-50 small d-none d-md-inline">
+                    <i class="bi bi-shield-lock-fill text-warning me-1"></i> Zero-Knowledge Access
+                </span>
+            </div>
         </div>
     </nav>
 
@@ -79,6 +86,130 @@
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <script>
+    // Browser Local Storage Fleet History Manager
+    const FleetStorage = {
+        STORAGE_KEY: "fleet_ota_devices",
+
+        getDevices: function() {
+            try {
+                const raw = localStorage.getItem(this.STORAGE_KEY);
+                return raw ? JSON.parse(raw) : [];
+            } catch (e) {
+                console.error("Failed to read from localStorage:", e);
+                return [];
+            }
+        },
+
+        saveDevice: function(entry) {
+            try {
+                const devices = this.getDevices();
+                const existingIndex = devices.findIndex(d => d.apiKey === entry.apiKey);
+                const now = entry.uploadedAt || new Date().toISOString();
+
+                if (existingIndex >= 0) {
+                    const existing = devices[existingIndex];
+                    let history = existing.history || [];
+
+                    // If entry has a full server history array, prefer the more complete history
+                    if (Array.isArray(entry.history) && entry.history.length > history.length) {
+                        history = entry.history;
+                    } else {
+                        // Only add to history if this version is not already recorded
+                        const hasVersion = history.some(h => h.version === entry.version);
+                        if (!hasVersion) {
+                            history.push({
+                                version: entry.version,
+                                crc32: entry.crc32,
+                                filename: entry.filename || existing.filename,
+                                uploadedAt: now
+                            });
+                        }
+                    }
+
+                    // Keep newest version
+                    const latestVersion = Math.max(existing.version || 1, entry.version || 1);
+                    const isNewer = (entry.version || 1) >= (existing.version || 1);
+
+                    devices[existingIndex] = {
+                        ...existing,
+                        filename: (isNewer && entry.filename) ? entry.filename : existing.filename,
+                        version: latestVersion,
+                        crc32: isNewer ? entry.crc32 : existing.crc32,
+                        uploadedAt: isNewer ? now : existing.uploadedAt,
+                        label: existing.label || entry.filename || "Device " + entry.apiKey.substring(0, 8),
+                        history: history
+                    };
+                } else {
+                    const history = (Array.isArray(entry.history) && entry.history.length > 0) ? entry.history : [{
+                        version: entry.version || 1,
+                        crc32: entry.crc32 || 0,
+                        filename: entry.filename || "firmware.bin",
+                        uploadedAt: now
+                    }];
+
+                    devices.unshift({
+                        apiKey: entry.apiKey,
+                        filename: entry.filename || "firmware.bin",
+                        label: entry.label || entry.filename || "Device " + entry.apiKey.substring(0, 8),
+                        version: entry.version || 1,
+                        crc32: entry.crc32 || 0,
+                        uploadedAt: now,
+                        history: history
+                    });
+                }
+
+                localStorage.setItem(this.STORAGE_KEY, JSON.stringify(devices));
+                this.updateBadges();
+                return true;
+            } catch (e) {
+                console.error("Failed to save to localStorage:", e);
+                return false;
+            }
+        },
+
+        removeDevice: function(apiKey) {
+            try {
+                let devices = this.getDevices();
+                devices = devices.filter(d => d.apiKey !== apiKey);
+                localStorage.setItem(this.STORAGE_KEY, JSON.stringify(devices));
+                this.updateBadges();
+            } catch (e) {
+                console.error("Failed to delete from localStorage:", e);
+            }
+        },
+
+        updateLabel: function(apiKey, newLabel) {
+            try {
+                const devices = this.getDevices();
+                const dev = devices.find(d => d.apiKey === apiKey);
+                if (dev) {
+                    dev.label = newLabel.trim() || dev.filename;
+                    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(devices));
+                }
+            } catch (e) {
+                console.error("Failed to update label in localStorage:", e);
+            }
+        },
+
+        clearAll: function() {
+            localStorage.removeItem(this.STORAGE_KEY);
+            this.updateBadges();
+        },
+
+        updateBadges: function() {
+            const count = this.getDevices().length;
+            document.querySelectorAll(".device-count-badge").forEach(el => {
+                el.innerText = count;
+                el.style.display = count > 0 ? "inline-block" : "none";
+            });
+        }
+    };
+
+    document.addEventListener("DOMContentLoaded", () => {
+        FleetStorage.updateBadges();
+    });
+    </script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

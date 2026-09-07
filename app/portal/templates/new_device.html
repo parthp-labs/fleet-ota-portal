@@ -32,7 +32,12 @@
 
             <!-- API Key Display Box -->
             <div class="mb-4">
-                <label class="form-label fw-bold text-dark mb-2">Device API Key (Bearer Token):</label>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <label class="form-label fw-bold text-dark mb-0">Device API Key (Bearer Token):</label>
+                    <span class="badge bg-success-subtle text-success border border-success-subtle">
+                        <i class="bi bi-hdd-fill me-1"></i> Saved to Local Storage
+                    </span>
+                </div>
                 <div class="position-relative">
                     <div id="apiKeyDisplay" class="key-display fw-bold text-primary text-break pe-5">{{ api_key }}</div>
                     <button class="btn btn-outline-secondary position-absolute top-50 end-0 translate-middle-y me-2 btn-sm" 
@@ -44,21 +49,28 @@
                         <span id="copyText">Copy</span>
                     </button>
                 </div>
+                <div class="form-text small text-success mt-1">
+                    <i class="bi bi-shield-check me-1"></i> Stored in this browser's local storage so you can review history or deploy updates anytime.
+                </div>
             </div>
 
             <!-- Firmware Metadata Summary Table -->
             <div class="card bg-light border-0 mb-4 p-3">
                 <h6 class="fw-bold mb-3 text-secondary text-uppercase small" style="letter-spacing: 0.5px;">Deployment Details</h6>
                 <div class="row g-3 text-start">
-                    <div class="col-sm-4">
+                    <div class="col-sm-3">
                         <span class="text-muted small d-block">Initial Version</span>
                         <span class="badge bg-primary fs-6 px-3 py-1">v{{ metadata.version }}</span>
                     </div>
-                    <div class="col-sm-4">
+                    <div class="col-sm-3">
                         <span class="text-muted small d-block">CRC32 Checksum</span>
-                        <span class="font-monospace fw-bold text-dark">0x{{ "%08X" % metadata.crc32 }} ({{ metadata.crc32 }})</span>
+                        <span class="font-monospace fw-bold text-dark">0x{{ "%08X" % metadata.crc32 }}</span>
                     </div>
-                    <div class="col-sm-4">
+                    <div class="col-sm-3">
+                        <span class="text-muted small d-block">File Name</span>
+                        <span class="small text-dark font-monospace text-truncate d-block" title="{{ filename }}">{{ filename or 'firmware.bin' }}</span>
+                    </div>
+                    <div class="col-sm-3">
                         <span class="text-muted small d-block">Uploaded At (UTC)</span>
                         <span class="small text-dark">{{ metadata.uploaded_at }}</span>
                     </div>
@@ -92,6 +104,17 @@ int httpCode = http.GET();</code></pre>
 
 {% block scripts %}
 <script>
+// Automatically persist registered device in browser localStorage
+document.addEventListener("DOMContentLoaded", () => {
+    FleetStorage.saveDevice({
+        apiKey: "{{ api_key }}",
+        filename: "{{ filename or 'firmware.bin' }}",
+        version: {{ metadata.version }},
+        crc32: {{ metadata.crc32 }},
+        uploadedAt: "{{ metadata.uploaded_at }}"
+    });
+});
+
 function copyApiKey() {
     const keyText = document.getElementById("apiKeyDisplay").innerText.trim();
     navigator.clipboard.writeText(keyText).then(() => {

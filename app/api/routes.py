@@ -21,7 +21,6 @@ def check_update(api_key, metadata):
         }), 400
 
     try:
-        print(current_version_str)
         current_version = int(current_version_str)
     except (ValueError, TypeError):
         return jsonify({

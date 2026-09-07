@@ -112,3 +112,58 @@ def test_save_firmware_file_too_large(firmware_dir, make_esp32_bin):
     
     with pytest.raises(FileTooLargeError):
         save_firmware_file(file_obj, key, firmware_dir, version=1, max_size=1024)
+
+def test_save_firmware_file_history_tracking(firmware_dir, make_esp32_bin):
+    key = generate_api_key()
+    bin1 = make_esp32_bin(b"VERSION_1")
+    bin2 = make_esp32_bin(b"VERSION_2")
+    
+    # 1. Initial upload
+    meta1 = save_firmware_file(io.BytesIO(bin1), key, firmware_dir, version=1, filename="sensor_v1.bin")
+    assert meta1["version"] == 1
+    assert meta1["filename"] == "sensor_v1.bin"
+    assert len(meta1["history"]) == 1
+    assert meta1["history"][0]["version"] == 1
+    assert meta1["history"][0]["filename"] == "sensor_v1.bin"
+
+    # 2. Update upload
+    meta2 = save_firmware_file(io.BytesIO(bin2), key, firmware_dir, version=2, filename="sensor_v2.bin")
+    assert meta2["version"] == 2
+    assert meta2["filename"] == "sensor_v2.bin"
+    assert len(meta2["history"]) == 2
+    assert meta2["history"][0]["version"] == 1
+    assert meta2["history"][1]["version"] == 2
+    assert meta2["history"][1]["filename"] == "sensor_v2.bin"
+
+    # Verify disk reflection
+    loaded = read_metadata(key, firmware_dir)
+    assert len(loaded["history"]) == 2
+    assert loaded["version"] == 2
+
+def test_list_existing_firmwares(firmware_dir, make_esp32_bin):
+    from app.storage import list_existing_firmwares
+
+    # Empty initially
+    assert list_existing_firmwares(firmware_dir) == []
+
+    # Add device A
+    key_a = generate_api_key()
+    save_firmware_file(io.BytesIO(make_esp32_bin(b"A")), key_a, firmware_dir, version=1, filename="app_a.bin")
+
+    # Add device B
+    key_b = generate_api_key()
+    save_firmware_file(io.BytesIO(make_esp32_bin(b"B")), key_b, firmware_dir, version=2, filename="app_b.bin")
+
+    listing = list_existing_firmwares(firmware_dir)
+    assert len(listing) == 2
+    keys = [item["apiKey"] for item in listing]
+    assert key_a in keys
+    assert key_b in keys
+    for item in listing:
+        assert "version" in item
+        assert "crc32" in item
+        assert "filename" in item
+        assert "sizeBytes" in item
+        assert item["sizeBytes"] > 0
+
+

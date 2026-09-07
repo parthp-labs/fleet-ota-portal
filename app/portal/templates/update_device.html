@@ -23,15 +23,24 @@
 
             <!-- Metadata Details Table -->
             <div class="card bg-light border-0 mb-4 p-4">
-                <h6 class="fw-bold mb-3 text-secondary text-uppercase small" style="letter-spacing: 0.5px;">Update Summary</h6>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="fw-bold mb-0 text-secondary text-uppercase small" style="letter-spacing: 0.5px;">Update Summary</h6>
+                    <span class="badge bg-success-subtle text-success border border-success-subtle">
+                        <i class="bi bi-hdd-fill me-1"></i> Updated in Local Storage
+                    </span>
+                </div>
                 <div class="row g-3">
-                    <div class="col-sm-6">
+                    <div class="col-sm-4">
                         <span class="text-muted small d-block">New Firmware Version</span>
                         <span class="badge bg-success fs-5 px-3 py-1 mt-1">v{{ metadata.version }}</span>
                     </div>
-                    <div class="col-sm-6">
+                    <div class="col-sm-4">
                         <span class="text-muted small d-block">CRC32 Checksum</span>
-                        <span class="font-monospace fw-bold text-dark fs-6 d-block mt-1">0x{{ "%08X" % metadata.crc32 }} ({{ metadata.crc32 }})</span>
+                        <span class="font-monospace fw-bold text-dark fs-6 d-block mt-1">0x{{ "%08X" % metadata.crc32 }}</span>
+                    </div>
+                    <div class="col-sm-4">
+                        <span class="text-muted small d-block">Uploaded File</span>
+                        <span class="small font-monospace text-dark text-truncate d-block mt-1" id="updateFilenameDisplay">{{ metadata.filename or 'firmware.bin' }}</span>
                     </div>
                     <div class="col-12 mt-3">
                         <span class="text-muted small d-block">Uploaded At (UTC)</span>
@@ -44,7 +53,7 @@
             <div class="p-3 bg-body-tertiary rounded-3 border mb-4">
                 <div class="d-flex align-items-center gap-2 small text-muted">
                     <i class="bi bi-shield-lock-fill text-secondary"></i>
-                    <span>For security, the API key is not displayed again. Your device already holds this key in its firmware.</span>
+                    <span>For security, the API key is not displayed again. Your device already holds this key in its firmware, and your browser's local history has been updated.</span>
                 </div>
             </div>
 
@@ -56,4 +65,31 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Automatically update device record in browser localStorage using the key held in this browser
+document.addEventListener("DOMContentLoaded", () => {
+    const pendingKey = sessionStorage.getItem("fleet_ota_pending_key");
+    const pendingFilename = sessionStorage.getItem("fleet_ota_pending_filename");
+    
+    if (pendingFilename) {
+        const fnDisplay = document.getElementById("updateFilenameDisplay");
+        if (fnDisplay) fnDisplay.innerText = pendingFilename;
+    }
+
+    if (pendingKey) {
+        FleetStorage.saveDevice({
+            apiKey: pendingKey,
+            filename: pendingFilename || "{{ metadata.filename or 'firmware.bin' }}",
+            version: {{ metadata.version }},
+            crc32: {{ metadata.crc32 }},
+            uploadedAt: "{{ metadata.uploaded_at }}"
+        });
+        sessionStorage.removeItem("fleet_ota_pending_key");
+        sessionStorage.removeItem("fleet_ota_pending_filename");
+    }
+});
+</script>
 {% endblock %}

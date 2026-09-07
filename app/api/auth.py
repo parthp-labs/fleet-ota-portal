@@ -13,7 +13,6 @@ def require_device_auth(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         auth_header = request.headers.get("Authorization")
-        print(request.headers)
         if not auth_header:
             return jsonify({
                 "error": "Unauthorized",
