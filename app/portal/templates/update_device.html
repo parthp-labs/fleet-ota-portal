@@ -14,20 +14,10 @@
                 <p class="text-secondary small mb-0">The device firmware has been updated to the latest revision.</p>
             </div>
 
-            <div class="alert alert-success border-success-subtle bg-success-subtle d-flex align-items-center gap-3 p-3 mb-4" role="alert">
-                <i class="bi bi-check2-all text-success fs-3"></i>
-                <div class="small">
-                    <strong>Deployment active:</strong> Devices polling the <code>/api/v1/check-update</code> endpoint with their embedded key will now detect the new version and download this firmware binary automatically.
-                </div>
-            </div>
-
             <!-- Metadata Details Table -->
             <div class="card bg-light border-0 mb-4 p-4">
-                <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="mb-3">
                     <h6 class="fw-bold mb-0 text-secondary text-uppercase small" style="letter-spacing: 0.5px;">Update Summary</h6>
-                    <span class="badge bg-success-subtle text-success border border-success-subtle">
-                        <i class="bi bi-hdd-fill me-1"></i> Updated in Local Storage
-                    </span>
                 </div>
                 <div class="row g-3">
                     <div class="col-sm-4">
@@ -46,14 +36,6 @@
                         <span class="text-muted small d-block">Uploaded At (UTC)</span>
                         <span class="small font-monospace text-dark">{{ metadata.uploaded_at }}</span>
                     </div>
-                </div>
-            </div>
-
-            <!-- Note on API Key security -->
-            <div class="p-3 bg-body-tertiary rounded-3 border mb-4">
-                <div class="d-flex align-items-center gap-2 small text-muted">
-                    <i class="bi bi-shield-lock-fill text-secondary"></i>
-                    <span>For security, the API key is not displayed again. Your device already holds this key in its firmware, and your browser's local history has been updated.</span>
                 </div>
             </div>
 

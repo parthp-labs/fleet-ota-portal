@@ -4,42 +4,95 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}ESP32 Fleet OTA Platform{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
+        :root {
+            --bs-body-font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            --bs-primary: #4f46e5;
+            --bs-primary-rgb: 79, 70, 229;
+            --bs-primary-hover: #4338ca;
+        }
         body {
             background-color: #f8fafc;
-            color: #1e293b;
+            color: #0f172a;
             min-height: 100vh;
             display: flex;
             flex-direction: column;
+            letter-spacing: -0.01em;
+        }
+        .navbar-dark.bg-dark {
+            background-color: #0f172a !important;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
         }
         .navbar-brand {
             font-weight: 700;
-            letter-spacing: -0.5px;
+            letter-spacing: -0.03em;
+            font-size: 1.15rem;
         }
         .main-card {
             border: 1px solid #e2e8f0;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+            border-radius: 14px;
+            box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.05), 0 1px 2px -1px rgb(0 0 0 / 0.05);
             background: #ffffff;
+            transition: box-shadow 0.2s ease;
+        }
+        .btn-primary {
+            background-color: #4f46e5;
+            border-color: #4f46e5;
+            box-shadow: 0 1px 2px 0 rgba(79, 70, 229, 0.25);
+        }
+        .btn-primary:hover, .btn-primary:focus {
+            background-color: #4338ca;
+            border-color: #4338ca;
         }
         .key-display {
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            font-family: 'JetBrains Mono', ui-monospace, Menlo, Monaco, Consolas, monospace;
             word-break: break-all;
             background-color: #f1f5f9;
             border: 1px solid #cbd5e1;
             padding: 12px 16px;
-            border-radius: 8px;
-            font-size: 0.95rem;
+            border-radius: 10px;
+            font-size: 0.9rem;
         }
         .code-block {
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-family: 'JetBrains Mono', monospace;
             font-size: 0.85rem;
             background: #0f172a;
             color: #f8fafc;
-            border-radius: 8px;
+            border-radius: 10px;
             padding: 1rem;
+        }
+        .drop-zone {
+            border: 2px dashed #cbd5e1;
+            border-radius: 12px;
+            padding: 1.5rem 1rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: #f8fafc;
+        }
+        .drop-zone:hover, .drop-zone.dragover {
+            border-color: #4f46e5;
+            background: #eef2ff;
+        }
+        .drop-zone-icon {
+            font-size: 2rem;
+            color: #6366f1;
+        }
+        .table > :not(caption) > * > * {
+            padding: 0.85rem 0.75rem;
+        }
+        .table tr:hover {
+            background-color: #f8fafc;
+        }
+        .badge-soft-primary {
+            background-color: #e0e7ff;
+            color: #3730a3;
+            font-weight: 600;
         }
     </style>
 </head>
@@ -51,19 +104,14 @@
                 <span>ESP32 Fleet OTA</span>
             </a>
             <div class="d-flex align-items-center gap-3">
-                <a href="{{ url_for('portal.index') }}#history-section" class="btn btn-sm btn-outline-light d-flex align-items-center gap-2">
-                    <i class="bi bi-clock-history"></i>
-                    <span>Local History</span>
-                    <span class="badge bg-info text-dark rounded-pill device-count-badge" style="display:none;">0</span>
-                </a>
-                <span class="navbar-text text-light-50 small d-none d-md-inline">
+                <span class="navbar-text text-light-50 small">
                     <i class="bi bi-shield-lock-fill text-warning me-1"></i> Zero-Knowledge Access
                 </span>
             </div>
         </div>
     </nav>
 
-    <main class="container my-5 flex-grow-1">
+    <main class="container-xxl my-4 my-lg-5 flex-grow-1">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}

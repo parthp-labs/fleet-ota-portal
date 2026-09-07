@@ -3,98 +3,127 @@
 {% block title %}Upload Firmware - ESP32 Fleet OTA{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-lg-8 col-xl-7">
-        <div class="card main-card p-4 p-md-5">
-            <div class="text-center mb-4">
-                <div class="d-inline-flex align-items-center justify-content-center bg-primary-subtle text-primary rounded-circle mb-3" style="width: 64px; height: 64px;">
-                    <i class="bi bi-cloud-arrow-up-fill fs-2"></i>
+<div class="row g-4 align-items-start">
+    <!-- Left Column: Upload Form -->
+    <div class="col-12 col-lg-5 col-xl-4">
+        <div class="card main-card p-4 sticky-lg-top" style="top: 2rem; z-index: 10;">
+            <div class="d-flex align-items-center gap-3 mb-4">
+                <div class="d-flex align-items-center justify-content-center bg-primary text-white rounded-3 shadow-sm" style="width: 44px; height: 44px;">
+                    <i class="bi bi-cloud-arrow-up-fill fs-4"></i>
                 </div>
-                <h2 class="h3 fw-bold mb-1">Firmware Deployment Portal</h2>
-                <p class="text-secondary small mb-0">Register a new device slot or deploy an OTA firmware update to an existing fleet device.</p>
+                <div>
+                    <h2 class="h5 fw-bold mb-0 text-dark">Firmware Deployment Portal</h2>
+                    <p class="text-secondary small mb-0">Register a new device or push an OTA update.</p>
+                </div>
             </div>
 
-            <form action="{{ url_for('portal.upload') }}" method="POST" enctype="multipart/form-data" novalidate>
-                <!-- Firmware File Input -->
-                <div class="mb-4">
-                    <label for="firmware_file" class="form-label fw-semibold">
+            <form action="{{ url_for('portal.upload') }}" method="POST" enctype="multipart/form-data" novalidate id="otaUploadForm">
+                <!-- Interactive Drag & Drop Area -->
+                <div class="mb-3">
+                    <label class="form-label fw-semibold small text-secondary mb-1">
                         Firmware Binary (.bin) <span class="text-danger">*</span>
                     </label>
-                    <input class="form-control form-control-lg" type="file" id="firmware_file" name="firmware_file" accept=".bin" required>
-                    <div class="form-text small text-muted">
-                        <i class="bi bi-info-circle me-1"></i> Must be a valid compiled ESP32 firmware image (starts with magic byte <code>0xE9</code>, max 4MB).
+                    <div class="drop-zone" id="dropZone" onclick="document.getElementById('firmware_file').click()">
+                        <i class="bi bi-cpu-fill drop-zone-icon d-block mb-1"></i>
+                        <div class="small fw-semibold text-dark">Click to browse or drop .bin file</div>
+                        <div class="text-muted" style="font-size: 0.75rem;">ESP32 compiled binary (max 4 MB)</div>
+                        <input class="d-none" type="file" id="firmware_file" name="firmware_file" accept=".bin" required>
+                    </div>
+
+                    <!-- Selected file pill preview -->
+                    <div id="fileInfoBox" class="mt-2 p-2 bg-success-subtle border border-success-subtle text-success-emphasis rounded-3 small align-items-center justify-content-between" style="display: none;">
+                        <div class="d-flex align-items-center gap-2 text-truncate">
+                            <i class="bi bi-check-circle-fill text-success flex-shrink-0"></i>
+                            <span class="fw-semibold text-truncate font-monospace" id="selectedFileName"></span>
+                            <span class="badge bg-success text-white" id="selectedFileSize"></span>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-link text-danger p-0 ms-2" onclick="resetFile(event)" title="Remove file">
+                            <i class="bi bi-x-circle-fill fs-6"></i>
+                        </button>
                     </div>
                 </div>
 
-                <!-- Optional API Key Input -->
-                <div class="mb-4">
-                    <label for="api_key" class="form-label fw-semibold">
-                        Existing API key <span class="text-muted fw-normal">(leave blank to register a new device)</span>
-                    </label>
-                    <div class="input-group">
-                        <span class="input-group-text bg-light"><i class="bi bi-key-fill text-secondary"></i></span>
+                <!-- API Key Input -->
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <label for="api_key" class="form-label fw-semibold small text-secondary mb-0">
+                            Device API Key
+                        </label>
+                        <span class="badge bg-light text-secondary border small">Optional</span>
+                    </div>
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-light text-muted"><i class="bi bi-key-fill"></i></span>
                         <input type="text" class="form-control font-monospace" id="api_key" name="api_key" 
-                               placeholder="64-hexadecimal characters (optional)" 
+                               placeholder="Leave blank for new device" 
                                value="{{ prefill_key or '' }}"
                                maxlength="64"
                                spellcheck="false"
                                autocomplete="off">
                     </div>
-                    <div class="form-text small text-muted mt-2">
+                    <div class="p-2 bg-light rounded-2 mt-2" style="font-size: 0.78rem;">
                         <div class="d-flex align-items-start gap-2 mb-1">
-                            <i class="bi bi-plus-circle text-success mt-1"></i>
-                            <span><strong>Leave blank:</strong> Generates a cryptographically random 256-bit API key and registers a brand new device at Version 1.</span>
+                            <i class="bi bi-plus-circle text-success mt-0.5"></i>
+                            <span><strong>Blank:</strong> Registers a brand-new device slot at Version 1.</span>
                         </div>
                         <div class="d-flex align-items-start gap-2">
-                            <i class="bi bi-arrow-repeat text-primary mt-1"></i>
-                            <span><strong>Provide key:</strong> Pushes an update for an existing device, incrementing its version number.</span>
+                            <i class="bi bi-arrow-repeat text-primary mt-0.5"></i>
+                            <span><strong>Provided:</strong> Increments version and deploys update.</span>
                         </div>
                     </div>
                 </div>
 
                 <!-- Submit Button -->
                 <div class="d-grid mt-4">
-                    <button type="submit" class="btn btn-primary btn-lg fw-semibold d-flex align-items-center justify-content-center gap-2">
+                    <button type="submit" id="submitBtn" class="btn btn-primary py-2 fw-semibold d-flex align-items-center justify-content-center gap-2">
                         <i class="bi bi-upload"></i>
-                        <span>Upload and Deploy Firmware</span>
+                        <span>Upload & Deploy Firmware</span>
                     </button>
                 </div>
             </form>
         </div>
 
-        <!-- Explanatory Info Card -->
-        <div class="card main-card mt-4 p-3 bg-light border-0">
-            <div class="d-flex align-items-center gap-3">
-                <i class="bi bi-shield-check text-success fs-3"></i>
+        <!-- Zero-Knowledge Security Notice Card -->
+        <div class="card main-card mt-3 p-3 bg-light border-0">
+            <div class="d-flex align-items-start gap-3">
+                <i class="bi bi-shield-check text-success fs-4 mt-0.5"></i>
                 <div class="small">
-                    <strong class="text-dark">Zero-Knowledge Architecture:</strong> Each device slot is secured exclusively by its 64-hex API key. No user accounts or database exist on this server. Only clients presenting the matching key can download the firmware.
+                    <strong class="text-dark d-block mb-1">Zero-Knowledge Architecture</strong>
+                    <span class="text-muted">Devices are keyed strictly by their 256-bit API token. No server accounts or tracking database exist. Only devices presenting the matching key can download updates.</span>
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- Local Storage Uploaded Firmwares History Section -->
-        <div id="history-section" class="card main-card mt-5 p-4 p-md-5">
-            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 pb-3 mb-4 border-bottom">
+    <!-- Right Column: Firmwares & Local History Dashboard -->
+    <div class="col-12 col-lg-7 col-xl-8">
+        <div id="history-section" class="card main-card p-4">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 pb-3 mb-3 border-bottom">
                 <div>
-                    <h3 class="h4 fw-bold mb-1 d-flex align-items-center gap-2">
+                    <h3 class="h5 fw-bold mb-1 d-flex align-items-center gap-2">
                         <i class="bi bi-clock-history text-primary"></i>
                         <span>Uploaded Firmwares & Local History</span>
                     </h3>
                     <p class="text-muted small mb-0">
-                        Tracked in your browser's local storage &bull; Device keys and deployment history for this machine.
+                        Tracked in browser local storage &bull; Synced automatically with server filesystem.
                     </p>
                 </div>
-                <div class="d-flex gap-2">
-                    <button class="btn btn-outline-secondary btn-sm" onclick="exportHistory()" title="Export JSON backup of saved devices">
-                        <i class="bi bi-download me-1"></i> Export
-                    </button>
-                    <label class="btn btn-outline-secondary btn-sm mb-0 cursor-pointer" title="Import JSON backup of saved devices">
-                        <i class="bi bi-upload me-1"></i> Import
-                        <input type="file" id="importFileInput" accept=".json" style="display:none;" onchange="importHistory(event)">
-                    </label>
-                    <button class="btn btn-outline-danger btn-sm" onclick="clearAllHistory()" title="Clear local storage history">
-                        <i class="bi bi-trash me-1"></i> Clear
-                    </button>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <div class="input-group input-group-sm" style="max-width: 220px;">
+                        <span class="input-group-text bg-light border-end-0 text-muted"><i class="bi bi-search"></i></span>
+                        <input type="text" id="deviceSearchInput" class="form-control bg-light border-start-0" placeholder="Filter devices..." oninput="filterDevices(this.value)">
+                    </div>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-secondary" onclick="exportHistory()" title="Export JSON backup of saved devices">
+                            <i class="bi bi-download"></i>
+                        </button>
+                        <label class="btn btn-outline-secondary mb-0 cursor-pointer" title="Import JSON backup of saved devices">
+                            <i class="bi bi-upload"></i>
+                            <input type="file" id="importFileInput" accept=".json" style="display:none;" onchange="importHistory(event)">
+                        </label>
+                        <button class="btn btn-outline-danger" onclick="clearAllHistory()" title="Clear local storage history">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -109,27 +138,27 @@
 <!-- Device Version Timeline Modal -->
 <div class="modal fade" id="historyModal" tabindex="-1" aria-labelledby="historyModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content border-0 shadow">
-            <div class="modal-header bg-dark text-white">
-                <h5 class="modal-title d-flex align-items-center gap-2" id="historyModalLabel">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 14px; overflow: hidden;">
+            <div class="modal-header bg-dark text-white px-4 py-3">
+                <h5 class="modal-title d-flex align-items-center gap-2 fs-6 fw-bold" id="historyModalLabel">
                     <i class="bi bi-layers-fill text-info"></i>
                     <span id="modalDeviceTitle">Device Firmware Revisions</span>
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body p-4">
-                <div class="mb-3">
+                <div class="mb-4">
                     <label class="form-label text-muted small fw-semibold">Device API Key</label>
-                    <div class="input-group">
-                        <input type="text" class="form-control font-monospace small bg-light" id="modalApiKeyInput" readonly>
+                    <div class="input-group input-group-sm">
+                        <input type="text" class="form-control font-monospace bg-light" id="modalApiKeyInput" readonly>
                         <button class="btn btn-outline-secondary" onclick="copyModalKey()">
                             <i class="bi bi-clipboard" id="modalCopyIcon"></i>
                         </button>
                     </div>
                 </div>
-                <h6 class="fw-bold text-secondary text-uppercase small mt-4 mb-3">Revision Timeline</h6>
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle">
+                <h6 class="fw-bold text-secondary text-uppercase small mb-2" style="letter-spacing: 0.5px;">Revision Timeline</h6>
+                <div class="table-responsive rounded-3 border">
+                    <table class="table table-hover align-middle mb-0">
                         <thead class="table-light small">
                             <tr>
                                 <th>Version</th>
@@ -138,13 +167,13 @@
                                 <th>Deployed At (UTC)</th>
                             </tr>
                         </thead>
-                        <tbody id="modalTimelineBody">
+                        <tbody id="modalTimelineBody" class="small">
                             <!-- Populated dynamically -->
                         </tbody>
                     </table>
                 </div>
             </div>
-            <div class="modal-footer bg-light">
+            <div class="modal-footer bg-light px-4 py-2">
                 <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
@@ -154,20 +183,100 @@
 
 {% block scripts %}
 <script>
+let activeFilterText = "";
+
+// Drag and drop file handling
+const dropZone = document.getElementById("dropZone");
+const fileInput = document.getElementById("firmware_file");
+const fileInfoBox = document.getElementById("fileInfoBox");
+const selectedFileName = document.getElementById("selectedFileName");
+const selectedFileSize = document.getElementById("selectedFileSize");
+
+if (dropZone && fileInput) {
+    ['dragenter', 'dragover'].forEach(name => {
+        dropZone.addEventListener(name, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropZone.classList.add("dragover");
+        });
+    });
+
+    ['dragleave', 'drop'].forEach(name => {
+        dropZone.addEventListener(name, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropZone.classList.remove("dragover");
+        });
+    });
+
+    dropZone.addEventListener("drop", (e) => {
+        const files = e.dataTransfer?.files;
+        if (files && files.length > 0) {
+            fileInput.files = files;
+            updateFileDisplay(files[0]);
+        }
+    });
+
+    fileInput.addEventListener("change", () => {
+        if (fileInput.files && fileInput.files.length > 0) {
+            updateFileDisplay(fileInput.files[0]);
+        }
+    });
+}
+
+function updateFileDisplay(file) {
+    if (!file) return;
+    selectedFileName.innerText = file.name;
+    const sizeKB = (file.size / 1024).toFixed(1);
+    selectedFileSize.innerText = sizeKB > 1024 ? (sizeKB / 1024).toFixed(2) + " MB" : sizeKB + " KB";
+    fileInfoBox.style.display = "flex";
+}
+
+function resetFile(e) {
+    if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+    fileInput.value = "";
+    fileInfoBox.style.display = "none";
+}
+
+function filterDevices(text) {
+    activeFilterText = (text || "").trim().toLowerCase();
+    renderHistory();
+}
+
 function renderHistory() {
     const container = document.getElementById("historyContainer");
-    const devices = FleetStorage.getDevices();
+    let devices = FleetStorage.getDevices();
 
     if (!devices || devices.length === 0) {
         container.innerHTML = `
             <div class="text-center py-5">
-                <div class="text-muted mb-3">
-                    <i class="bi bi-inbox fs-1"></i>
+                <div class="text-muted mb-3 opacity-50">
+                    <i class="bi bi-cpu fs-1"></i>
                 </div>
-                <h5 class="fw-bold text-secondary">No Upload History in this Browser</h5>
-                <p class="text-muted small mb-0" style="max-width: 460px; margin: 0 auto;">
-                    When you register or update devices through this portal, their API keys, versions, and firmware details will automatically be saved here in local storage.
+                <h5 class="fw-bold text-secondary fs-6">No Upload History Stored</h5>
+                <p class="text-muted small mb-0" style="max-width: 440px; margin: 0 auto;">
+                    When you deploy firmware to devices through this portal, their API keys, revisions, and checksums will automatically appear here.
                 </p>
+            </div>
+        `;
+        return;
+    }
+
+    if (activeFilterText) {
+        devices = devices.filter(d => 
+            (d.label && d.label.toLowerCase().includes(activeFilterText)) ||
+            (d.filename && d.filename.toLowerCase().includes(activeFilterText)) ||
+            (d.apiKey && d.apiKey.toLowerCase().includes(activeFilterText))
+        );
+    }
+
+    if (devices.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-4">
+                <p class="text-muted small mb-0"><i class="bi bi-search me-1"></i> No devices match "<strong>${escapeHtml(activeFilterText)}</strong>".</p>
             </div>
         `;
         return;
@@ -178,15 +287,15 @@ function renderHistory() {
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-light small text-secondary">
                     <tr>
-                        <th style="min-width: 160px;">Device / File</th>
-                        <th style="min-width: 180px;">API Key</th>
+                        <th style="min-width: 170px;">Device / File</th>
+                        <th style="min-width: 170px;">API Key</th>
                         <th>Version</th>
                         <th>CRC32</th>
                         <th style="min-width: 130px;">Uploaded</th>
-                        <th class="text-end" style="min-width: 180px;">Actions</th>
+                        <th class="text-end" style="min-width: 160px;">Actions</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody class="small">
     `;
 
     devices.forEach((dev, idx) => {
@@ -200,18 +309,18 @@ function renderHistory() {
                 <td>
                     <div class="fw-bold text-dark d-flex align-items-center gap-1">
                         <span id="label-text-${idx}">${escapeHtml(dev.label || dev.filename || "ESP32 Device")}</span>
-                        <button class="btn btn-link btn-sm text-secondary p-0 ms-1" onclick="editLabel('${dev.apiKey}', '${escapeHtml(dev.label || dev.filename || '')}')" title="Rename label">
+                        <button class="btn btn-link btn-sm text-muted p-0 ms-1" onclick="editLabel('${dev.apiKey}', '${escapeHtml(dev.label || dev.filename || '')}')" title="Rename nickname">
                             <i class="bi bi-pencil-square"></i>
                         </button>
                     </div>
-                    <div class="small text-muted font-monospace text-truncate" style="max-width: 180px;" title="${escapeHtml(dev.filename || '')}">
+                    <div class="text-muted font-monospace text-truncate" style="max-width: 190px; font-size: 0.78rem;" title="${escapeHtml(dev.filename || '')}">
                         <i class="bi bi-file-earmark-binary me-1"></i>${escapeHtml(dev.filename || 'firmware.bin')}
                     </div>
                 </td>
                 <td>
                     <div class="d-flex align-items-center gap-1">
-                        <span class="font-monospace small text-primary" id="key-display-${idx}">${shortKey}</span>
-                        <button class="btn btn-outline-secondary btn-sm py-0 px-1" onclick="copyText('${dev.apiKey}', this)" title="Copy full 64-hex key">
+                        <span class="font-monospace text-primary bg-light px-2 py-0.5 rounded border" id="key-display-${idx}" style="font-size: 0.8rem;">${shortKey}</span>
+                        <button class="btn btn-light btn-sm py-0 px-1 border" onclick="copyText('${dev.apiKey}', this)" title="Copy full 64-hex key">
                             <i class="bi bi-clipboard"></i>
                         </button>
                     </div>
@@ -219,24 +328,24 @@ function renderHistory() {
                 <td>
                     <span class="badge bg-primary">v${dev.version || 1}</span>
                     ${revisionCount > 1 ? `
-                        <button class="btn btn-link btn-sm p-0 d-block small text-decoration-none mt-1" onclick="showHistoryModal('${dev.apiKey}')">
+                        <button class="btn btn-link btn-sm p-0 d-block text-decoration-none mt-1" style="font-size: 0.75rem;" onclick="showHistoryModal('${dev.apiKey}')">
                             ${revisionCount} revisions
                         </button>
                     ` : ''}
                 </td>
                 <td>
-                    <span class="font-monospace small text-dark">${crcHex}</span>
+                    <span class="font-monospace text-dark" style="font-size: 0.82rem;">${crcHex}</span>
                 </td>
                 <td>
-                    <span class="small text-muted">${uploadDate}</span>
+                    <span class="text-muted" style="font-size: 0.8rem;">${uploadDate}</span>
                 </td>
                 <td class="text-end">
-                    <div class="btn-group btn-group-sm">
+                    <div class="btn-group btn-group-sm shadow-sm">
                         <button class="btn btn-outline-primary" onclick="deployUpdate('${dev.apiKey}')" title="Deploy update to this device">
-                            <i class="bi bi-upload me-1"></i> Update
+                            <i class="bi bi-arrow-repeat"></i> Update
                         </button>
                         <button class="btn btn-outline-secondary" onclick="checkLiveStatus('${dev.apiKey}', ${dev.version || 1}, this)" title="Query live device endpoint on server">
-                            <i class="bi bi-arrow-clockwise"></i>
+                            <i class="bi bi-activity"></i>
                         </button>
                         <button class="btn btn-outline-secondary" onclick="downloadFirmware('${dev.apiKey}', '${escapeHtml(dev.filename || 'firmware.bin')}')" title="Download current firmware binary">
                             <i class="bi bi-download"></i>
@@ -377,9 +486,9 @@ function showHistoryModal(apiKey) {
     tbody.innerHTML = historyList.map((h, i) => `
         <tr>
             <td><span class="badge bg-${i === historyList.length - 1 ? 'success' : 'secondary'}">v${h.version || (i+1)}</span></td>
-            <td class="font-monospace small">${escapeHtml(h.filename || 'firmware.bin')}</td>
-            <td class="font-monospace small">0x${Number((h.crc32 || 0) >>> 0).toString(16).toUpperCase().padStart(8, '0')}</td>
-            <td class="small text-muted">${h.uploadedAt ? new Date(h.uploadedAt).toLocaleString() : 'N/A'}</td>
+            <td class="font-monospace">${escapeHtml(h.filename || 'firmware.bin')}</td>
+            <td class="font-monospace">0x${Number((h.crc32 || 0) >>> 0).toString(16).toUpperCase().padStart(8, '0')}</td>
+            <td class="text-muted">${h.uploadedAt ? new Date(h.uploadedAt).toLocaleString() : 'N/A'}</td>
         </tr>
     `).join("");
 
@@ -456,10 +565,9 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    // 2. Render history table
     renderHistory();
 
-    const form = document.querySelector("form");
+    const form = document.getElementById("otaUploadForm");
     if (form) {
         form.addEventListener("submit", () => {
             const key = document.getElementById("api_key")?.value.trim();

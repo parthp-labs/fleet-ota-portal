@@ -76,7 +76,6 @@ def test_upload_update_device(client, firmware_dir, make_esp32_bin):
     html2 = res2.data.decode("utf-8")
     assert "Firmware Update Succeeded!" in html2
     assert "v2" in html2
-    assert "Updated in Local Storage" in html2
     assert "FleetStorage.saveDevice" in html2
     # Ensure API key is NOT re-exposed on confirmation page
     assert key not in html2
