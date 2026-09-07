@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block title %}New Device Registered - ESP32 Fleet OTA{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-9 col-xl-8">
+        <div class="card main-card p-4 p-md-5">
+            <div class="text-center mb-4">
+                <div class="d-inline-flex align-items-center justify-content-center bg-success-subtle text-success rounded-circle mb-3" style="width: 64px; height: 64px;">
+                    <i class="bi bi-check-circle-fill fs-2"></i>
+                </div>
+                <h2 class="h3 fw-bold text-success mb-1">Device Registration Successful!</h2>
+                <p class="text-secondary small mb-0">A new device slot has been generated and initialized with Version 1 firmware.</p>
+            </div>
+
+            <!-- Prominent Warning Banner -->
+            <div class="alert alert-warning border-warning d-flex align-items-start gap-3 p-3 mb-4 shadow-sm" role="alert">
+                <i class="bi bi-exclamation-triangle-fill text-warning fs-3 flex-shrink-0 mt-1"></i>
+                <div>
+                    <h5 class="alert-heading fw-bold mb-1">Save This API Key Immediately!</h5>
+                    <p class="mb-1 small">
+                        This system is completely database-free and does not have user accounts. 
+                        <strong>This is the ONLY time this API key will ever be displayed.</strong>
+                        If you lose this key, you will permanently lose the ability to deploy OTA updates to this device.
+                    </p>
+                    <p class="mb-0 small fw-semibold text-danger-emphasis">
+                        Copy this key now and hardcode/configure it inside your ESP32 device's firmware.
+                    </p>
+                </div>
+            </div>
+
+            <!-- API Key Display Box -->
+            <div class="mb-4">
+                <label class="form-label fw-bold text-dark mb-2">Device API Key (Bearer Token):</label>
+                <div class="position-relative">
+                    <div id="apiKeyDisplay" class="key-display fw-bold text-primary text-break pe-5">{{ api_key }}</div>
+                    <button class="btn btn-outline-secondary position-absolute top-50 end-0 translate-middle-y me-2 btn-sm" 
+                            type="button" 
+                            id="copyBtn" 
+                            onclick="copyApiKey()"
+                            title="Copy to clipboard">
+                        <i class="bi bi-clipboard me-1" id="copyIcon"></i>
+                        <span id="copyText">Copy</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Firmware Metadata Summary Table -->
+            <div class="card bg-light border-0 mb-4 p-3">
+                <h6 class="fw-bold mb-3 text-secondary text-uppercase small" style="letter-spacing: 0.5px;">Deployment Details</h6>
+                <div class="row g-3 text-start">
+                    <div class="col-sm-4">
+                        <span class="text-muted small d-block">Initial Version</span>
+                        <span class="badge bg-primary fs-6 px-3 py-1">v{{ metadata.version }}</span>
+                    </div>
+                    <div class="col-sm-4">
+                        <span class="text-muted small d-block">CRC32 Checksum</span>
+                        <span class="font-monospace fw-bold text-dark">0x{{ "%08X" % metadata.crc32 }} ({{ metadata.crc32 }})</span>
+                    </div>
+                    <div class="col-sm-4">
+                        <span class="text-muted small d-block">Uploaded At (UTC)</span>
+                        <span class="small text-dark">{{ metadata.uploaded_at }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ESP32 Quick Integration Guide -->
+            <div class="mb-4">
+                <h6 class="fw-bold text-dark mb-2"><i class="bi bi-cpu me-1"></i> ESP32 Integration Quick Reference</h6>
+                <p class="text-muted small mb-2">Configure your ESP32 HTTP client to include this key in the <code>Authorization</code> header:</p>
+                <div class="code-block">
+<pre class="mb-0"><code>// Arduino / ESP-IDF HTTP Request Headers:
+http.begin("http://&lt;your-server-ip&gt;:5000/api/v1/check-update?current_version=0");
+http.addHeader("Authorization", "Bearer {{ api_key }}");
+int httpCode = http.GET();</code></pre>
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+                <a href="{{ url_for('portal.index') }}" class="btn btn-outline-primary">
+                    <i class="bi bi-arrow-left me-1"></i> Return to Upload Portal
+                </a>
+                <a href="{{ url_for('portal.index', prefill_key=api_key) }}" class="btn btn-primary">
+                    Deploy Future Update for this Device <i class="bi bi-arrow-right ms-1"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function copyApiKey() {
+    const keyText = document.getElementById("apiKeyDisplay").innerText.trim();
+    navigator.clipboard.writeText(keyText).then(() => {
+        const copyBtn = document.getElementById("copyBtn");
+        const copyIcon = document.getElementById("copyIcon");
+        const copyText = document.getElementById("copyText");
+        
+        copyIcon.className = "bi bi-check-lg text-success";
+        copyText.innerText = "Copied!";
+        copyBtn.className = "btn btn-outline-success position-absolute top-50 end-0 translate-middle-y me-2 btn-sm";
+        
+        setTimeout(() => {
+            copyIcon.className = "bi bi-clipboard me-1";
+            copyText.innerText = "Copy";
+            copyBtn.className = "btn btn-outline-secondary position-absolute top-50 end-0 translate-middle-y me-2 btn-sm";
+        }, 2500);
+    }).catch(err => {
+        console.error("Clipboard copy failed:", err);
+    });
+}
+</script>
+{% endblock %}

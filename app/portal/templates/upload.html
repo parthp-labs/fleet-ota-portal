@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Firmware - ESP32 Fleet OTA{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8 col-xl-7">
+        <div class="card main-card p-4 p-md-5">
+            <div class="text-center mb-4">
+                <div class="d-inline-flex align-items-center justify-content-center bg-primary-subtle text-primary rounded-circle mb-3" style="width: 64px; height: 64px;">
+                    <i class="bi bi-cloud-arrow-up-fill fs-2"></i>
+                </div>
+                <h2 class="h3 fw-bold mb-1">Firmware Deployment Portal</h2>
+                <p class="text-secondary small mb-0">Register a new device slot or deploy an OTA firmware update to an existing fleet device.</p>
+            </div>
+
+            <form action="{{ url_for('portal.upload') }}" method="POST" enctype="multipart/form-data" novalidate>
+                <!-- Firmware File Input -->
+                <div class="mb-4">
+                    <label for="firmware_file" class="form-label fw-semibold">
+                        Firmware Binary (.bin) <span class="text-danger">*</span>
+                    </label>
+                    <input class="form-control form-control-lg" type="file" id="firmware_file" name="firmware_file" accept=".bin" required>
+                    <div class="form-text small text-muted">
+                        <i class="bi bi-info-circle me-1"></i> Must be a valid compiled ESP32 firmware image (starts with magic byte <code>0xE9</code>, max 4MB).
+                    </div>
+                </div>
+
+                <!-- Optional API Key Input -->
+                <div class="mb-4">
+                    <label for="api_key" class="form-label fw-semibold">
+                        Existing API key <span class="text-muted fw-normal">(leave blank to register a new device)</span>
+                    </label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light"><i class="bi bi-key-fill text-secondary"></i></span>
+                        <input type="text" class="form-control font-monospace" id="api_key" name="api_key" 
+                               placeholder="64-hexadecimal characters (optional)" 
+                               value="{{ prefill_key or '' }}"
+                               maxlength="64"
+                               spellcheck="false"
+                               autocomplete="off">
+                    </div>
+                    <div class="form-text small text-muted mt-2">
+                        <div class="d-flex align-items-start gap-2 mb-1">
+                            <i class="bi bi-plus-circle text-success mt-1"></i>
+                            <span><strong>Leave blank:</strong> Generates a cryptographically random 256-bit API key and registers a brand new device at Version 1.</span>
+                        </div>
+                        <div class="d-flex align-items-start gap-2">
+                            <i class="bi bi-arrow-repeat text-primary mt-1"></i>
+                            <span><strong>Provide key:</strong> Pushes an update for an existing device, incrementing its version number.</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Submit Button -->
+                <div class="d-grid mt-4">
+                    <button type="submit" class="btn btn-primary btn-lg fw-semibold d-flex align-items-center justify-content-center gap-2">
+                        <i class="bi bi-upload"></i>
+                        <span>Upload and Deploy Firmware</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Explanatory Info Card -->
+        <div class="card main-card mt-4 p-3 bg-light border-0">
+            <div class="d-flex align-items-center gap-3">
+                <i class="bi bi-shield-check text-success fs-3"></i>
+                <div class="small">
+                    <strong class="text-dark">Zero-Knowledge Architecture:</strong> Each device slot is secured exclusively by its 64-hex API key. No user accounts or database exist on this server. Only clients presenting the matching key can download the firmware.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

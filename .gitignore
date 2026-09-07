@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+
+# Pytest / testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local Firmware files (binaries and device keys should not be committed to source control)
+firmware/*.bin
+firmware/*.json
+!firmware/.gitkeep
+
+# OS / Editor artifacts
+.DS_Store
+*.swp
+.idea/
+.vscode/

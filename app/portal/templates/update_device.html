@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}Firmware Update Deployed - ESP32 Fleet OTA{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8 col-xl-7">
+        <div class="card main-card p-4 p-md-5">
+            <div class="text-center mb-4">
+                <div class="d-inline-flex align-items-center justify-content-center bg-primary-subtle text-primary rounded-circle mb-3" style="width: 64px; height: 64px;">
+                    <i class="bi bi-arrow-up-circle-fill fs-2"></i>
+                </div>
+                <h2 class="h3 fw-bold text-primary mb-1">Firmware Update Succeeded!</h2>
+                <p class="text-secondary small mb-0">The device firmware has been updated to the latest revision.</p>
+            </div>
+
+            <div class="alert alert-success border-success-subtle bg-success-subtle d-flex align-items-center gap-3 p-3 mb-4" role="alert">
+                <i class="bi bi-check2-all text-success fs-3"></i>
+                <div class="small">
+                    <strong>Deployment active:</strong> Devices polling the <code>/api/v1/check-update</code> endpoint with their embedded key will now detect the new version and download this firmware binary automatically.
+                </div>
+            </div>
+
+            <!-- Metadata Details Table -->
+            <div class="card bg-light border-0 mb-4 p-4">
+                <h6 class="fw-bold mb-3 text-secondary text-uppercase small" style="letter-spacing: 0.5px;">Update Summary</h6>
+                <div class="row g-3">
+                    <div class="col-sm-6">
+                        <span class="text-muted small d-block">New Firmware Version</span>
+                        <span class="badge bg-success fs-5 px-3 py-1 mt-1">v{{ metadata.version }}</span>
+                    </div>
+                    <div class="col-sm-6">
+                        <span class="text-muted small d-block">CRC32 Checksum</span>
+                        <span class="font-monospace fw-bold text-dark fs-6 d-block mt-1">0x{{ "%08X" % metadata.crc32 }} ({{ metadata.crc32 }})</span>
+                    </div>
+                    <div class="col-12 mt-3">
+                        <span class="text-muted small d-block">Uploaded At (UTC)</span>
+                        <span class="small font-monospace text-dark">{{ metadata.uploaded_at }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Note on API Key security -->
+            <div class="p-3 bg-body-tertiary rounded-3 border mb-4">
+                <div class="d-flex align-items-center gap-2 small text-muted">
+                    <i class="bi bi-shield-lock-fill text-secondary"></i>
+                    <span>For security, the API key is not displayed again. Your device already holds this key in its firmware.</span>
+                </div>
+            </div>
+
+            <div class="d-grid">
+                <a href="{{ url_for('portal.index') }}" class="btn btn-primary btn-lg">
+                    <i class="bi bi-arrow-left me-1"></i> Return to Upload Portal
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
